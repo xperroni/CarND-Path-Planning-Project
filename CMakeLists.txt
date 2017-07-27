@@ -9,6 +9,8 @@ set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
 set(sources
     "src/main.cpp"
+    "src/highway_map.cpp"
+    "src/path_planner.cpp"
 )
 
 
