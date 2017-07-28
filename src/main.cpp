@@ -32,9 +32,6 @@ std::string hasData(std::string s) {
 int main() {
     uWS::Hub h;
 
-    // The max s value before wrapping around the track back to 0
-    double max_s = 6945.554;
-
     PathPlanner planner(3, 4.0);
     std::ifstream map_file("data/highway_map.csv");
     map_file >> planner.highway;
@@ -65,7 +62,7 @@ int main() {
 
         // Main car's localization Data
         State state(j[1]);
-        std::cout << state.x << ", " << state.y << ", " << state.o << std::endl;
+//         std::cout << state.x << ", " << state.y << ", " << state.o << std::endl;
 
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];

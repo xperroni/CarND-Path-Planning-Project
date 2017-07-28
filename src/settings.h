@@ -1,10 +1,10 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#define Lf 0.37
-
+/** @brief Number of planned waypoints. */
 #define N_PLAN 50
 
+/** @brief Time gap between waypoints. */
 #define T_PLAN 0.02
 
 /** @brief Optimal speed in m/s. */

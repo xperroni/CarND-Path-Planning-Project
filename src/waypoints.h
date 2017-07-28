@@ -25,7 +25,10 @@ struct Waypoints {
      */
     Waypoints(const std::vector<double> &x, const std::vector<double> &y);
 
-    State finalState() const;
+    /**
+     * @brief Return the predicted state at the last waypoint.
+     */
+    State stateLast() const;
 
     /**
      * @brief Computes polynomial coefficients for these waypoints.

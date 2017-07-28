@@ -11,83 +11,77 @@ using CppAD::AD;
 
 using Eigen::VectorXd;
 
-static const int A = 0;
-static const int D = 1;
-static const int SIZEOF_ACTUATION = 2;
+static const size_t X = 0;
+static const size_t Y = 1;
+static const size_t A = 1;
+static const size_t D = 2;
+static const size_t SIZEOF_POINT = 2;
+static const size_t SIZEOF_CONSTRAINT = 3;
 
 struct Cost {
-    /** @brief Basic scalar value. */
+    /** @brief Basic scalar value type. */
     typedef AD<double> Scalar;
 
     /** @brief Differentiable variable vector type. */
     typedef CPPAD_TESTVECTOR(Scalar) ADvector;
 
-    /** @brief Size of the time step. */
-    Scalar dt;
+    /** @brief Previous longitudinal speed. */
+    Scalar v_0;
 
-    /** @brief Initial speed at the beginning of the time window. */
-    Scalar v0;
+    /** @brief Reference longitudinal speed. */
+    Scalar v_r;
 
-    /** @brief Reference speed. */
-    Scalar vr;
+    /** @brief Previous lateral speed. */
+    Scalar w_0;
 
     /** @brief Coefficients of the polynomial describing the reference route. */
     VectorXd route;
 
+    /** @brief Number of `(x, y)` points in the plan. */
+    size_t n_plan;
+
     /**
      * @brief Create a new optimization task with given initial speed and reference route.
      */
-    Cost(double v0, const VectorXd &route) {
-        this->dt = T_PLAN;
-        this->v0 = v0;
-        this->vr = V_PLAN;
+    Cost(double v_0, size_t n_plan, const VectorXd &route) {
+        this->v_0 = v_0;
+        this->v_r = V_PLAN;
+        this->w_0 = 0;
         this->route = route;
+        this->n_plan = n_plan;
     }
 
     /**
      * @brief Compute the cost function for the MPP.
      */
     void operator () (ADvector &fg, const ADvector &vars) {
-        // Route is given relative to the car's current pose, so
-        // planning always start from the origin at (0, 0, 0).
-        Scalar xt = 0;
-        Scalar yt = 0;
-        Scalar ht = 0;
-        Scalar vt = v0;
+        for (size_t i = 0, n = n_plan - 1; i < n; ++i) {
+            auto &x_0 = vars[X + SIZEOF_POINT * i];
+            auto &y_0 = vars[Y + SIZEOF_POINT * i];
+            auto &x_1 = vars[X + SIZEOF_POINT * (i + 1)];
+            auto &y_1 = vars[Y + SIZEOF_POINT * (i + 1)];
 
-        for (int i = 0; i < N_PLAN; ++i) {
-            // Compute the controller-proposed state at time (i * dt).
-            auto &a = vars[A + SIZEOF_ACTUATION * i];
-            auto &d = vars[D + SIZEOF_ACTUATION * i];
-            ht += vt * Lf * d * dt;
-            vt += a * dt;
-            xt += CppAD::cos(ht) * vt * dt;
-            yt += CppAD::sin(ht) * vt * dt;
+            auto x_d = x_1 - x_0;
+            auto y_d = y_1 - y_0;
 
-            // Compute the reference state at time (i * dt).
-            auto yr = reference(xt);
-            auto hr = CppAD::atan2(yr, xt);
+            // Longitudinal and lateral speeds.
+            auto v_1 = x_d / T_PLAN;
+            auto w_1 = y_d / T_PLAN;
 
-            // Compute the contribution at time i * dt to the cost function.
-            fg[0] += CppAD::pow(yt - yr, 2);
-            fg[0] += CppAD::pow(ht - hr, 2);
-            fg[0] += CppAD::pow(vt - vr, 2);
+            // Reference state.
+            auto y_r = reference(x_1);
 
-            // Minimize actuator use.
-            fg[0] += CppAD::pow(a, 2);
-            fg[0] += CppAD::pow(d, 2);
-        }
+            // Contribution to the cost function.
+            fg[0] += CppAD::pow(y_r - y_1, 2);
+            fg[0] += CppAD::pow(v_r - v_1, 2);
 
-        // Minimize the value gap between sequential actuations.
-        for (int i = 1; i < N_PLAN; ++i) {
-            auto &a1 = vars[A + SIZEOF_ACTUATION * (i - 1)];
-            auto &d1 = vars[D + SIZEOF_ACTUATION * (i - 1)];
+            // Constraint functions values.
+            fg[1 + X + SIZEOF_CONSTRAINT * i] = x_d;
+            fg[1 + A + SIZEOF_CONSTRAINT * i] = (v_1 - v_0) / T_PLAN;
+            fg[1 + D + SIZEOF_CONSTRAINT * i] = (w_1 - w_0) / T_PLAN;
 
-            auto &a2 = vars[A + SIZEOF_ACTUATION * i];
-            auto &d2 = vars[D + SIZEOF_ACTUATION * i];
-
-            fg[0] += CppAD::pow(a1 - a2, 2);
-            fg[0] += 10 * CppAD::pow(d1 - d2, 2); // Be more strict about direction changes.
+            v_0 = v_1;
+            w_0 = w_1;
         }
     }
 
@@ -97,7 +91,7 @@ private:
    */
   Scalar reference(const Scalar &x) const {
     Scalar y = route(0);
-    for (int i = 1, n = route.rows(); i < n; ++i) {
+    for (size_t i = 1, n = route.rows(); i < n; ++i) {
       y += route(i) * CppAD::pow(x, i);
     }
 
@@ -105,32 +99,56 @@ private:
   }
 };
 
-Waypoints MPP(const State &state, const Lane &lane) {
+Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
     // Differentiable value vector type.
     typedef CPPAD_TESTVECTOR(double) Vector;
 
-    // Independent variables and bounds.
-    Vector vars(N_PLAN * SIZEOF_ACTUATION);
-    Vector vars_lowerbound(N_PLAN * SIZEOF_ACTUATION);
-    Vector vars_upperbound(N_PLAN * SIZEOF_ACTUATION);
+    size_t n_plan = N_PLAN - previous.size();
+    if (previous.size() > 1) {
+        state = previous.stateLast();
+    }
 
-    // Constraint bounds, set to size 0 as the cost function includes no constraints.
-    Vector constraints_lowerbound(0);
-    Vector constraints_upperbound(0);
+    // Independent variables and bounds.
+    Vector vars(n_plan * SIZEOF_POINT);
+    Vector vars_lowerbound(n_plan * SIZEOF_POINT);
+    Vector vars_upperbound(n_plan * SIZEOF_POINT);
+
+    // Constraint bounds.
+    Vector constraints_lowerbound((n_plan - 1) * SIZEOF_CONSTRAINT);
+    Vector constraints_upperbound((n_plan - 1) * SIZEOF_CONSTRAINT);
 
     // Initialize independent variable and bounds vectors.
-    for (int i = 0; i < N_PLAN; i++) {
-        int i_a = A + i * SIZEOF_ACTUATION;
-        int i_d = D + i * SIZEOF_ACTUATION;
+    for (size_t i = 0; i < n_plan; i++) {
+        size_t i_x = X + i * SIZEOF_POINT;
+        size_t i_y = Y + i * SIZEOF_POINT;
 
-        vars[i_a] = 0;
-        vars[i_d] = 0;
+        vars[i_x] = 0;
+        vars[i_y] = 0;
 
-        vars_lowerbound[i_a] = -1.0;
-        vars_upperbound[i_a] = 1.0;
+        vars_lowerbound[i_x] = 0;
+        vars_upperbound[i_x] = 2 * V_PLAN * T_PLAN * n_plan;
 
-        vars_lowerbound[i_d] = -0.523598;
-        vars_upperbound[i_d] = 0.523598;
+        vars_lowerbound[i_y] = -2 * lane.width;
+        vars_upperbound[i_y] = 2 * lane.width;
+    }
+
+    // Lock the first point in place, as it represents the car's current position.
+    vars_lowerbound[X] = 0;
+    vars_upperbound[X] = 0;
+    vars_lowerbound[Y] = 0;
+    vars_upperbound[Y] = 0;
+
+    // Initialize constraint vectors.
+    for (size_t i = 0, n = n_plan - 1; i < n; i++) {
+        // Ensure x(t) is a strictly increasing function.
+        constraints_lowerbound[X + SIZEOF_CONSTRAINT * i] = 0.01;
+        constraints_upperbound[X + SIZEOF_CONSTRAINT * i] = 1.1 * V_PLAN * T_PLAN;
+
+        // Ensure accelerations stay within reasonable limits.
+        constraints_lowerbound[A + SIZEOF_CONSTRAINT * i] = -5.0;
+        constraints_upperbound[A + SIZEOF_CONSTRAINT * i] = 5.0;
+        constraints_lowerbound[D + SIZEOF_CONSTRAINT * i] = -5.0;
+        constraints_upperbound[D + SIZEOF_CONSTRAINT * i] = 5.0;
     }
 
     // Fit a polynomial to waypoints sampled from the lane.
@@ -139,7 +157,7 @@ Waypoints MPP(const State &state, const Lane &lane) {
     auto route = samples.fit();
 
     // Define the cost function.
-    Cost cost(state.v, route);
+    Cost cost(state.v, n_plan, route);
 
     // Options for IPOPT solver.
     std::string options =
@@ -163,31 +181,25 @@ Waypoints MPP(const State &state, const Lane &lane) {
         solution
     );
 
-    // Report solution results.
-    auto value = solution.obj_value;
-    auto status = (solution.status == CppAD::ipopt::solve_result<Vector>::success ? "succeeded" : "failed");
-//    std::cout << "Solver " << status << ", final cost value = " << value << std::endl;
     auto &control = solution.x;
+    std::vector<double> x;
+    std::vector<double> y;
 
-    std::vector<double> x; // = {state.x};
-    std::vector<double> y; // = {state.y};
-
-    double x_i = state.x;
-    double y_i = state.y;
-    double o_i = state.o;
-    double v_i = state.v;
-    for (int i = 0; i < N_PLAN; ++i) {
-        double a = control[A + SIZEOF_ACTUATION * i];
-        double d = control[D + SIZEOF_ACTUATION * i];
-
-        o_i += v_i * Lf * d * T_PLAN;
-        v_i += a * T_PLAN;
-        x_i += std::cos(o_i) * v_i * T_PLAN;
-        y_i += std::sin(o_i) * v_i * T_PLAN;
-
+    // Discard first waypoint, which is the same as the last waypoint in the
+    // `previous` vector.
+    for (size_t i = 1; i < n_plan; ++i) {
+        double x_i = control[X + SIZEOF_POINT * i];
+        double y_i = control[Y + SIZEOF_POINT * i];
         x.push_back(x_i);
         y.push_back(y_i);
     }
 
-    return {x, y};
+    Waypoints latest = {x, y};
+    latest.toGlobalFrame(state);
+
+    Waypoints waypoints = previous;
+    waypoints.x.insert(waypoints.x.end(), latest.x.begin(), latest.x.end());
+    waypoints.y.insert(waypoints.y.end(), latest.y.begin(), latest.y.end());
+
+    return waypoints;
 }

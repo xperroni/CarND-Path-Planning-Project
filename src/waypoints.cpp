@@ -20,7 +20,7 @@ Waypoints::Waypoints(const std::vector<double> &x, const std::vector<double> &y)
     this->y = y;
 }
 
-State Waypoints::finalState() const {
+State Waypoints::stateLast() const {
     size_t l = size() - 1;
     double x_a = x[l - 1];
     double y_a = y[l - 1];

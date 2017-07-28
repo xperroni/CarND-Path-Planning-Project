@@ -8,6 +8,6 @@
 /**
  * @brief Compute a sequence of waypoints to approach the given lane from the given state.
  */
-Waypoints MPP(const State &state, const Lane &lane);
+Waypoints MPP(State state, const Lane &lane, const Waypoints &previous);
 
 #endif
