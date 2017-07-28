@@ -1,6 +1,8 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include <cmath>
+
 struct State {
     /** @brief Current position in the horizontal axis. */
     double x;
@@ -35,8 +37,8 @@ struct State {
 template<class T> State::State(const T &map) {
     x = map["x"];
     y = map["y"];
-    o = map["yaw"];
-    v = map["speed"];
+    o = ((double) map["yaw"]) * M_PI / 180.0; // Convert from degrees to radians
+    v = ((double) map["speed"]) * 0.447; // Convert from MPH to m/s
 }
 
 #endif

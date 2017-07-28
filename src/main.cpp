@@ -65,13 +65,21 @@ int main() {
 
         // Main car's localization Data
         State state(j[1]);
+        std::cout << state.x << ", " << state.y << ", " << state.o << std::endl;
 
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];
 
-        json msgJson;
+        Waypoints previous(
+            j[1]["previous_path_x"],
+            j[1]["previous_path_y"]
+        );
 
-        std::tie(msgJson["next_x"], msgJson["next_y"]) = planner(state);
+        Waypoints waypoints = planner(state, previous);
+
+        json msgJson;
+        msgJson["next_x"] = waypoints.x;
+        msgJson["next_y"] = waypoints.y;
 
         auto msg = "42[\"control\","+ msgJson.dump()+"]";
 

@@ -3,11 +3,10 @@
 
 #include "highway_map.h"
 #include "state.h"
+#include "waypoints.h"
 
 #include <tuple>
 #include <vector>
-
-typedef std::tuple<std::vector<double>, std::vector<double>> Waypoints;
 
 struct PathPlanner {
     /** @brief Map of the highway for which paths are going to be planned. */
@@ -21,7 +20,7 @@ struct PathPlanner {
     /**
      * @brief Generate a path from a given car state.
      */
-    Waypoints operator () (const State &state);
+    Waypoints operator () (State state, const Waypoints &previous);
 };
 
 #endif

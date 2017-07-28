@@ -1,41 +1,10 @@
 #ifndef HIGHWAY_MAP_H
 #define HIGHWAY_MAP_H
 
+#include "lane.h"
+
 #include <iostream>
 #include <vector>
-
-struct Lane {
-    double width;
-
-    std::vector<double> x;
-
-    std::vector<double> y;
-
-    /**
-     * @brief Default constructor.
-     */
-    Lane();
-
-    /**
-     * @brief Create a new Lane of given width.
-     */
-    Lane(double width);
-
-    /**
-     * @brief Return the index of the lane waypoint closest to the given point.
-     */
-    size_t closestIndex(double x, double y) const;
-
-    /**
-     * @brief Return the index of the closest waypoint in front of the given pose.
-     */
-    size_t nextIndex(double x, double y, double o) const;
-
-    /**
-     * @brief Return the number of waypoints in the lane.
-     */
-    size_t size() const;
-};
 
 struct HighwayMap {
     std::vector<Lane> lanes;
