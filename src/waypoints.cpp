@@ -37,6 +37,15 @@ VectorXd Waypoints::fit() const {
     return result;
 }
 
+void Waypoints::update(const nlohmann::json &json) {
+    *this = {json["previous_path_x"], json["previous_path_y"]};
+
+    if (size() > N_KEEP) {
+        x.erase(x.begin() + N_KEEP, x.end());
+        y.erase(y.begin() + N_KEEP, y.end());
+    }
+}
+
 size_t Waypoints::size() const {
     return x.size();
 }

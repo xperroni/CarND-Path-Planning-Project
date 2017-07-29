@@ -1,7 +1,6 @@
 #ifndef STATE_H
 #define STATE_H
 
-#include "vehicles.h"
 #include "waypoints.h"
 
 #include "json.hpp"
@@ -19,21 +18,20 @@ struct State {
     /** @brief Current linear speed. */
     double v;
 
-    /** @brief Planned route. */
-    Waypoints route;
-
-    /** @brief Information on other vehicles. */
-    Vehicles vehicles;
-
     /**
      * @brief Default constructor.
      */
     State();
 
     /**
-     * @brief Create a new state from the given JSON node.
+     * @brief Update this state with data from the given JSON node.
      */
-    State(const nlohmann::json &json);
+    void update(const nlohmann::json &json);
+
+    /**
+     * @brief Update this state with data from the given route.
+     */
+    void update(const Waypoints &route);
 
     /**
      * @brief Convert the given waypoints to a local frame relative to this state.

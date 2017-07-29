@@ -5,9 +5,11 @@
 #include "state.h"
 #include "waypoints.h"
 
+#include <Eigen/Dense>
+
 /**
- * @brief The Optimizing Path Planner (OPP) computes a sequence of waypoints to approach the given lane from the given state.
+ * @brief The Optimizing Path Planner (OPP) computes a sequence of waypoints to approach the given route from the origin at `(0, 0)`.
  */
-Waypoints OPP(const State &state, const Lane &lane);
+Waypoints OPP(size_t n_plan, double v_0, double v_r, const Eigen::VectorXd &route);
 
 #endif

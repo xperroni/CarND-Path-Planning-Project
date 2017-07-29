@@ -1,6 +1,8 @@
 #ifndef WAYPOINTS_H
 #define WAYPOINTS_H
 
+#include "json.hpp"
+
 #include <Eigen/Dense>
 
 #include <cstddef>
@@ -19,7 +21,7 @@ struct Waypoints {
     Waypoints();
 
     /**
-     * @brief Create a new waypoint with given coordinate vectors.
+     * @brief Create a new waypoint list with given coordinate vectors.
      */
     Waypoints(const std::vector<double> &x, const std::vector<double> &y);
 
@@ -27,6 +29,11 @@ struct Waypoints {
      * @brief Computes polynomial coefficients for these waypoints.
      */
     Eigen::VectorXd fit() const;
+
+    /**
+     * @brief Update this waypoint list with data from the given JSON object.
+     */
+    void update(const nlohmann::json &json);
 
     /**
      * @brief Return the number of waypoints.

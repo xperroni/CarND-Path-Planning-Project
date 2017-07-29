@@ -1,4 +1,4 @@
-#include "path_planner.h"
+#include "navigator.h"
 
 #include <fstream>
 #include <math.h>
@@ -18,23 +18,25 @@ using json = nlohmann::json;
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
 std::string hasData(std::string s) {
-  auto found_null = s.find("null");
-  auto b1 = s.find_first_of("[");
-  auto b2 = s.find_first_of("}");
-  if (found_null != std::string::npos) {
+    auto found_null = s.find("null");
+    auto b1 = s.find_first_of("[");
+    auto b2 = s.find_first_of("}");
+    if (found_null != std::string::npos) {
+        return "";
+    }
+    else if (b1 != std::string::npos && b2 != std::string::npos) {
+        return s.substr(b1, b2 - b1 + 2);
+    }
+
     return "";
-  } else if (b1 != std::string::npos && b2 != std::string::npos) {
-    return s.substr(b1, b2 - b1 + 2);
-  }
-  return "";
 }
 
 int main() {
     uWS::Hub h;
 
-    PathPlanner planner(3, 4.0);
+    Navigator navigator(3, 4.0);
     std::ifstream map_file("data/highway_map.csv");
-    map_file >> planner.highway;
+    map_file >> navigator.highway;
 
     auto handler = [&](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
         // "42" at the start of the message means there's a websocket message event.
@@ -60,18 +62,11 @@ int main() {
             return;
         }
 
-        // Main car's localization Data
-        State state(j[1]);
-//         std::cout << state.x << ", " << state.y << ", " << state.o << std::endl;
-
-        // Sensor Fusion Data, a list of all other cars on the same side of the road.
-        auto sensor_fusion = j[1]["sensor_fusion"];
-
-        Waypoints waypoints = planner(state);
+        const Waypoints &route = navigator(j[1]);
 
         json msgJson;
-        msgJson["next_x"] = waypoints.x;
-        msgJson["next_y"] = waypoints.y;
+        msgJson["next_x"] = route.x;
+        msgJson["next_y"] = route.y;
 
         auto msg = "42[\"control\","+ msgJson.dump()+"]";
 

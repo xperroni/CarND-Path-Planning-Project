@@ -1,15 +1,13 @@
 #include "OPP.h"
 
+using Eigen::VectorXd;
+
 #include "settings.h"
 
 #include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
 
 using CppAD::AD;
-
-#include <Eigen/Dense>
-
-using Eigen::VectorXd;
 
 static const size_t X = 0;
 static const size_t Y = 1;
@@ -26,6 +24,9 @@ struct Cost {
     /** @brief Differentiable variable vector type. */
     typedef CPPAD_TESTVECTOR(Scalar) ADvector;
 
+    /** @brief Number of `(x, y)` points in the plan. */
+    size_t n_plan;
+
     /** @brief Previous longitudinal speed. */
     Scalar v_0;
 
@@ -35,36 +36,23 @@ struct Cost {
     /** @brief Coefficients of the polynomial describing the reference route. */
     VectorXd route;
 
-    /** @brief State of other vehicles around the car. */
-//     Vehicles vehicles;
-
-    /** @brief Number of `(x, y)` points in the plan. */
-    size_t n_plan;
-
     /**
      * @brief Create a new optimization task with given initial speed and reference route.
      */
-    Cost(const State &state, size_t n_plan, const VectorXd &route) {
-        this->v_0 = state.v;
-        this->v_r = V_PLAN;
-        this->route = route;
-//         this->vehicles = state.vehicles;
+    Cost(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
         this->n_plan = n_plan;
+        this->v_0 = v_0;
+        this->v_r = v_r;
+        this->route = route;
     }
 
     /**
      * @brief Compute the cost function for the OPP.
      */
     void operator () (ADvector &fg, const ADvector &vars) {
-//         static Scalar ZERO = 0.0;
-//         static Scalar ONE = 1.0;
-//
-//         size_t a_obstacles = 1 + SIZEOF_CONSTRAINT * (n_plan - 1);
-//         size_t n_obstacles = vehicles.size();
-
         Scalar w_0 = 0;
 
-        for (size_t i = 0, m = n_plan - 1; i < m; ++i) {
+        for (size_t i = 0, n = n_plan - 1; i < n; ++i) {
             auto &x_0 = vars[X + SIZEOF_POINT * i];
             auto &y_0 = vars[Y + SIZEOF_POINT * i];
             auto &x_1 = vars[X + SIZEOF_POINT * (i + 1)];
@@ -89,64 +77,37 @@ struct Cost {
             fg[1 + A + SIZEOF_CONSTRAINT * i] = (v_1 - v_0) / T_PLAN;
             fg[1 + D + SIZEOF_CONSTRAINT * i] = (w_1 - w_0) / T_PLAN;
 
-//             for (size_t j = 0; j < n_obstacles; ++j) {
-//                 double &x_p = vehicles.positions.x[j];
-//                 double &y_p = vehicles.positions.y[j];
-//
-//                 x_p += vehicles.speeds.x[j] * T_PLAN;
-//                 y_p += vehicles.speeds.y[j] * T_PLAN;
-//
-//                 auto x_e = x_p - x_0;
-//                 auto y_e = y_p - y_0;
-//
-//                 // See https://math.stackexchange.com/a/330329/467980
-//                 auto t_d = (x_d * x_e + y_d * y_e) / (CppAD::pow(x_d, 2) + CppAD::pow(y_d, 2));
-//                 auto t_s = CppAD::CondExpLt(ZERO, t_d, CppAD::CondExpLt(t_d, ONE, t_d, ONE), ZERO);
-//
-//                 auto x_s = x_0 + t_s * x_d;
-//                 auto y_s = y_0 + t_s * y_d;
-//
-//                 auto d = CppAD::pow(x_s - x_p, 2) + CppAD::pow(y_s - y_p, 2);
-//
-//                 fg[0] += 1.0 / (d + 10e-4);
-//
-//                 size_t offset = a_obstacles + (i * n_obstacles + j) * SIZEOF_OBSTACLE;
-//                 fg[offset + X] = d;
-//                 fg[offset + Y] = 1.0;
-//             }
-
             v_0 = v_1;
             w_0 = w_1;
         }
     }
 
 private:
-  /**
-   * @brief Compute the `y` coordinate for the reference route.
-   */
-  Scalar reference(const Scalar &x) const {
-    Scalar y = route(0);
-    for (size_t i = 1, n = route.rows(); i < n; ++i) {
-      y += route(i) * CppAD::pow(x, i);
-    }
+    /**
+     * @brief Compute the `y` coordinate for the reference route.
+     */
+    Scalar reference(const Scalar &x) const {
+        Scalar y = route(0);
+        for (size_t i = 1, n = route.rows(); i < n; ++i) {
+            y += route(i) * CppAD::pow(x, i);
+        }
 
-    return y;
-  }
+        return y;
+    }
 };
 
-Waypoints OPP(const State &state, const Lane &lane) {
+Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
     // Differentiable value vector type.
     typedef CPPAD_TESTVECTOR(double) Vector;
 
-    size_t n_plan = N_PLAN - state.route.size();
-
     // Initialize independent variable and bounds vectors.
-    Vector vars(n_plan * SIZEOF_POINT);
-    Vector vars_lowerbound(n_plan * SIZEOF_POINT);
-    Vector vars_upperbound(n_plan * SIZEOF_POINT);
-    for (size_t i = 0; i < n_plan; i++) {
-        size_t i_x = X + i * SIZEOF_POINT;
-        size_t i_y = Y + i * SIZEOF_POINT;
+    size_t n_vars = n_plan * SIZEOF_POINT;
+    Vector vars(n_vars);
+    Vector vars_lowerbound(n_vars);
+    Vector vars_upperbound(n_vars);
+    for (size_t i = 0; i < n_vars; i += SIZEOF_POINT) {
+        size_t i_x = i + X;
+        size_t i_y = i + Y;
 
         vars[i_x] = 0;
         vars[i_y] = 0;
@@ -154,8 +115,8 @@ Waypoints OPP(const State &state, const Lane &lane) {
         vars_lowerbound[i_x] = 0;
         vars_upperbound[i_x] = 2 * V_PLAN * T_PLAN * n_plan;
 
-        vars_lowerbound[i_y] = -2 * lane.width;
-        vars_upperbound[i_y] = 2 * lane.width;
+        vars_lowerbound[i_y] = -2 * V_PLAN * T_PLAN * n_plan;
+        vars_upperbound[i_y] = 2 * V_PLAN * T_PLAN * n_plan;
     }
 
     // Lock the first point in place, as it represents the car's current position.
@@ -165,37 +126,25 @@ Waypoints OPP(const State &state, const Lane &lane) {
     vars_upperbound[Y] = 0;
 
     // Initialize constraint vectors.
-    size_t n_constraints = n_plan - 1;
-//     size_t n_obstacles = state.vehicles.size();
-    Vector constraints_lowerbound(n_constraints * SIZEOF_CONSTRAINT); // (SIZEOF_CONSTRAINT + n_obstacles * SIZEOF_OBSTACLE));
-    Vector constraints_upperbound(n_constraints * SIZEOF_CONSTRAINT); // (SIZEOF_CONSTRAINT + n_obstacles * SIZEOF_OBSTACLE));
-    for (size_t i = 0; i < n_constraints; ++i) {
+    size_t n_constraints = (n_plan - 1) * SIZEOF_CONSTRAINT;
+    Vector constraints_lowerbound(n_constraints);
+    Vector constraints_upperbound(n_constraints);
+    for (size_t i = 0; i < n_constraints; i += SIZEOF_CONSTRAINT) {
         // Ensure x(t) is a strictly increasing function.
-        constraints_lowerbound[X + SIZEOF_CONSTRAINT * i] = 0.01;
-        constraints_upperbound[X + SIZEOF_CONSTRAINT * i] = 1.1 * V_PLAN * T_PLAN;
+        constraints_lowerbound[i + X] = 0.01;
+        constraints_upperbound[i + X] = 1.1 * V_PLAN * T_PLAN;
 
-        // Ensure accelerations stay within reasonable limits.
-        constraints_lowerbound[A + SIZEOF_CONSTRAINT * i] = -5.0;
-        constraints_upperbound[A + SIZEOF_CONSTRAINT * i] = 5.0;
-        constraints_lowerbound[D + SIZEOF_CONSTRAINT * i] = -5.0;
-        constraints_upperbound[D + SIZEOF_CONSTRAINT * i] = 5.0;
+        // Ensure longitudinal acceleration stays within reasonable limits.
+        constraints_lowerbound[i + A] = -5.0;
+        constraints_upperbound[i + A] = 5.0;
 
-//         for (size_t j = 0; j < n_obstacles; ++j) {
-//             size_t offset = n_constraints * SIZEOF_CONSTRAINT + (i * n_obstacles + j) * SIZEOF_OBSTACLE;
-//             constraints_lowerbound[offset + X] = 0.1;
-//             constraints_upperbound[offset + X] = std::numeric_limits<double>::max();
-//             constraints_lowerbound[offset + Y] = 0.1;
-//             constraints_upperbound[offset + Y] = std::numeric_limits<double>::max();
-//         }
+        // Ensure lateral acceleration stays within reasonable limits.
+        constraints_lowerbound[i + D] = -5.0;
+        constraints_upperbound[i + D] = 5.0;
     }
 
-    // Fit a polynomial to waypoints sampled from the lane.
-    Waypoints samples = lane.sample(state);
-    state.toLocalFrame(samples);
-    auto route = samples.fit();
-
     // Define the cost function.
-    Cost cost(state, n_plan, route);
+    Cost cost(n_plan, v_0, v_r, route);
 
     // Options for IPOPT solver.
     std::string options =
@@ -229,19 +178,10 @@ Waypoints OPP(const State &state, const Lane &lane) {
 
     // Discard first waypoint, which is the same as the last waypoint in the
     // current route.
-    for (size_t i = 1; i < n_plan; ++i) {
-        double x_i = control[X + SIZEOF_POINT * i];
-        double y_i = control[Y + SIZEOF_POINT * i];
-        x.push_back(x_i);
-        y.push_back(y_i);
+    for (size_t i = SIZEOF_POINT; i < n_vars; i += SIZEOF_POINT) {
+        x.push_back(control[i + X]);
+        y.push_back(control[i + Y]);
     }
 
-    Waypoints latest = {x, y};
-    state.toGlobalFrame(latest);
-
-    Waypoints waypoints = state.route;
-    waypoints.x.insert(waypoints.x.end(), latest.x.begin(), latest.x.end());
-    waypoints.y.insert(waypoints.y.end(), latest.y.begin(), latest.y.end());
-
-    return waypoints;
+    return {x, y};
 }
