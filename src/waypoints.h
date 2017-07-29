@@ -1,8 +1,6 @@
 #ifndef WAYPOINTS_H
 #define WAYPOINTS_H
 
-#include "state.h"
-
 #include <Eigen/Dense>
 
 #include <cstddef>
@@ -26,24 +24,9 @@ struct Waypoints {
     Waypoints(const std::vector<double> &x, const std::vector<double> &y);
 
     /**
-     * @brief Return the predicted state at the last waypoint.
-     */
-    State stateLast() const;
-
-    /**
      * @brief Computes polynomial coefficients for these waypoints.
      */
     Eigen::VectorXd fit() const;
-
-    /**
-     * @brief Convert these waypoints to the global frame using the given state as reference.
-     */
-    void toGlobalFrame(const State &state);
-
-    /**
-     * @brief Convert these waypoints to a local frame relative to the given state.
-     */
-    void toLocalFrame(const State &state);
 
     /**
      * @brief Return the number of waypoints.

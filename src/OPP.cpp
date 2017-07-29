@@ -1,4 +1,4 @@
-#include "MPP.h"
+#include "OPP.h"
 
 #include "settings.h"
 
@@ -17,6 +17,7 @@ static const size_t A = 1;
 static const size_t D = 2;
 static const size_t SIZEOF_POINT = 2;
 static const size_t SIZEOF_CONSTRAINT = 3;
+static const size_t SIZEOF_OBSTACLE = 2;
 
 struct Cost {
     /** @brief Basic scalar value type. */
@@ -31,11 +32,11 @@ struct Cost {
     /** @brief Reference longitudinal speed. */
     Scalar v_r;
 
-    /** @brief Previous lateral speed. */
-    Scalar w_0;
-
     /** @brief Coefficients of the polynomial describing the reference route. */
     VectorXd route;
+
+    /** @brief State of other vehicles around the car. */
+//     Vehicles vehicles;
 
     /** @brief Number of `(x, y)` points in the plan. */
     size_t n_plan;
@@ -43,19 +44,27 @@ struct Cost {
     /**
      * @brief Create a new optimization task with given initial speed and reference route.
      */
-    Cost(double v_0, size_t n_plan, const VectorXd &route) {
-        this->v_0 = v_0;
+    Cost(const State &state, size_t n_plan, const VectorXd &route) {
+        this->v_0 = state.v;
         this->v_r = V_PLAN;
-        this->w_0 = 0;
         this->route = route;
+//         this->vehicles = state.vehicles;
         this->n_plan = n_plan;
     }
 
     /**
-     * @brief Compute the cost function for the MPP.
+     * @brief Compute the cost function for the OPP.
      */
     void operator () (ADvector &fg, const ADvector &vars) {
-        for (size_t i = 0, n = n_plan - 1; i < n; ++i) {
+//         static Scalar ZERO = 0.0;
+//         static Scalar ONE = 1.0;
+//
+//         size_t a_obstacles = 1 + SIZEOF_CONSTRAINT * (n_plan - 1);
+//         size_t n_obstacles = vehicles.size();
+
+        Scalar w_0 = 0;
+
+        for (size_t i = 0, m = n_plan - 1; i < m; ++i) {
             auto &x_0 = vars[X + SIZEOF_POINT * i];
             auto &y_0 = vars[Y + SIZEOF_POINT * i];
             auto &x_1 = vars[X + SIZEOF_POINT * (i + 1)];
@@ -80,6 +89,32 @@ struct Cost {
             fg[1 + A + SIZEOF_CONSTRAINT * i] = (v_1 - v_0) / T_PLAN;
             fg[1 + D + SIZEOF_CONSTRAINT * i] = (w_1 - w_0) / T_PLAN;
 
+//             for (size_t j = 0; j < n_obstacles; ++j) {
+//                 double &x_p = vehicles.positions.x[j];
+//                 double &y_p = vehicles.positions.y[j];
+//
+//                 x_p += vehicles.speeds.x[j] * T_PLAN;
+//                 y_p += vehicles.speeds.y[j] * T_PLAN;
+//
+//                 auto x_e = x_p - x_0;
+//                 auto y_e = y_p - y_0;
+//
+//                 // See https://math.stackexchange.com/a/330329/467980
+//                 auto t_d = (x_d * x_e + y_d * y_e) / (CppAD::pow(x_d, 2) + CppAD::pow(y_d, 2));
+//                 auto t_s = CppAD::CondExpLt(ZERO, t_d, CppAD::CondExpLt(t_d, ONE, t_d, ONE), ZERO);
+//
+//                 auto x_s = x_0 + t_s * x_d;
+//                 auto y_s = y_0 + t_s * y_d;
+//
+//                 auto d = CppAD::pow(x_s - x_p, 2) + CppAD::pow(y_s - y_p, 2);
+//
+//                 fg[0] += 1.0 / (d + 10e-4);
+//
+//                 size_t offset = a_obstacles + (i * n_obstacles + j) * SIZEOF_OBSTACLE;
+//                 fg[offset + X] = d;
+//                 fg[offset + Y] = 1.0;
+//             }
+
             v_0 = v_1;
             w_0 = w_1;
         }
@@ -99,25 +134,16 @@ private:
   }
 };
 
-Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
+Waypoints OPP(const State &state, const Lane &lane) {
     // Differentiable value vector type.
     typedef CPPAD_TESTVECTOR(double) Vector;
 
-    size_t n_plan = N_PLAN - previous.size();
-    if (previous.size() > 1) {
-        state = previous.stateLast();
-    }
+    size_t n_plan = N_PLAN - state.route.size();
 
-    // Independent variables and bounds.
+    // Initialize independent variable and bounds vectors.
     Vector vars(n_plan * SIZEOF_POINT);
     Vector vars_lowerbound(n_plan * SIZEOF_POINT);
     Vector vars_upperbound(n_plan * SIZEOF_POINT);
-
-    // Constraint bounds.
-    Vector constraints_lowerbound((n_plan - 1) * SIZEOF_CONSTRAINT);
-    Vector constraints_upperbound((n_plan - 1) * SIZEOF_CONSTRAINT);
-
-    // Initialize independent variable and bounds vectors.
     for (size_t i = 0; i < n_plan; i++) {
         size_t i_x = X + i * SIZEOF_POINT;
         size_t i_y = Y + i * SIZEOF_POINT;
@@ -139,7 +165,11 @@ Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
     vars_upperbound[Y] = 0;
 
     // Initialize constraint vectors.
-    for (size_t i = 0, n = n_plan - 1; i < n; i++) {
+    size_t n_constraints = n_plan - 1;
+//     size_t n_obstacles = state.vehicles.size();
+    Vector constraints_lowerbound(n_constraints * SIZEOF_CONSTRAINT); // (SIZEOF_CONSTRAINT + n_obstacles * SIZEOF_OBSTACLE));
+    Vector constraints_upperbound(n_constraints * SIZEOF_CONSTRAINT); // (SIZEOF_CONSTRAINT + n_obstacles * SIZEOF_OBSTACLE));
+    for (size_t i = 0; i < n_constraints; ++i) {
         // Ensure x(t) is a strictly increasing function.
         constraints_lowerbound[X + SIZEOF_CONSTRAINT * i] = 0.01;
         constraints_upperbound[X + SIZEOF_CONSTRAINT * i] = 1.1 * V_PLAN * T_PLAN;
@@ -149,15 +179,23 @@ Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
         constraints_upperbound[A + SIZEOF_CONSTRAINT * i] = 5.0;
         constraints_lowerbound[D + SIZEOF_CONSTRAINT * i] = -5.0;
         constraints_upperbound[D + SIZEOF_CONSTRAINT * i] = 5.0;
+
+//         for (size_t j = 0; j < n_obstacles; ++j) {
+//             size_t offset = n_constraints * SIZEOF_CONSTRAINT + (i * n_obstacles + j) * SIZEOF_OBSTACLE;
+//             constraints_lowerbound[offset + X] = 0.1;
+//             constraints_upperbound[offset + X] = std::numeric_limits<double>::max();
+//             constraints_lowerbound[offset + Y] = 0.1;
+//             constraints_upperbound[offset + Y] = std::numeric_limits<double>::max();
+//         }
     }
 
     // Fit a polynomial to waypoints sampled from the lane.
     Waypoints samples = lane.sample(state);
-    samples.toLocalFrame(state);
+    state.toLocalFrame(samples);
     auto route = samples.fit();
 
     // Define the cost function.
-    Cost cost(state.v, n_plan, route);
+    Cost cost(state, n_plan, route);
 
     // Options for IPOPT solver.
     std::string options =
@@ -182,11 +220,15 @@ Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
     );
 
     auto &control = solution.x;
+//     auto value = solution.obj_value;
+//     auto status = (solution.status == CppAD::ipopt::solve_result<Vector>::success ? "succeeded" : "failed");
+//     std::cout << "Solver " << status << ", final cost value = " << value << std::endl;
+
     std::vector<double> x;
     std::vector<double> y;
 
     // Discard first waypoint, which is the same as the last waypoint in the
-    // `previous` vector.
+    // current route.
     for (size_t i = 1; i < n_plan; ++i) {
         double x_i = control[X + SIZEOF_POINT * i];
         double y_i = control[Y + SIZEOF_POINT * i];
@@ -195,9 +237,9 @@ Waypoints MPP(State state, const Lane &lane, const Waypoints &previous) {
     }
 
     Waypoints latest = {x, y};
-    latest.toGlobalFrame(state);
+    state.toGlobalFrame(latest);
 
-    Waypoints waypoints = previous;
+    Waypoints waypoints = state.route;
     waypoints.x.insert(waypoints.x.end(), latest.x.begin(), latest.x.end());
     waypoints.y.insert(waypoints.y.end(), latest.y.begin(), latest.y.end());
 

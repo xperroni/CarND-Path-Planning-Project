@@ -1,7 +1,7 @@
 #ifndef LANE_H
 #define LANE_H
 
-#include "waypoints.h"
+#include "state.h"
 
 #include <cstddef>
 #include <tuple>

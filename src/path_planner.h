@@ -20,7 +20,7 @@ struct PathPlanner {
     /**
      * @brief Generate a path from a given car state.
      */
-    Waypoints operator () (State state, const Waypoints &previous);
+    Waypoints operator () (const State &state);
 };
 
 #endif

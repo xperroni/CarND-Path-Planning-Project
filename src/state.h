@@ -1,7 +1,10 @@
 #ifndef STATE_H
 #define STATE_H
 
-#include <cmath>
+#include "vehicles.h"
+#include "waypoints.h"
+
+#include "json.hpp"
 
 struct State {
     /** @brief Current position in the horizontal axis. */
@@ -16,29 +19,31 @@ struct State {
     /** @brief Current linear speed. */
     double v;
 
+    /** @brief Planned route. */
+    Waypoints route;
+
+    /** @brief Information on other vehicles. */
+    Vehicles vehicles;
+
     /**
      * @brief Default constructor.
      */
-    State():
-        x(0),
-        y(0),
-        o(0),
-        v(0)
-    {
-        // Nothing to do.
-    }
+    State();
 
     /**
-     * @brief Create a new state from the given map.
+     * @brief Create a new state from the given JSON node.
      */
-    template<class T> State(const T &map);
-};
+    State(const nlohmann::json &json);
 
-template<class T> State::State(const T &map) {
-    x = map["x"];
-    y = map["y"];
-    o = ((double) map["yaw"]) * M_PI / 180.0; // Convert from degrees to radians
-    v = ((double) map["speed"]) * 0.447; // Convert from MPH to m/s
-}
+    /**
+     * @brief Convert the given waypoints to a local frame relative to this state.
+     */
+    void toLocalFrame(Waypoints &waypoints) const;
+
+    /**
+     * @brief Convert the given waypoints to the global frame using this state as reference.
+     */
+    void toGlobalFrame(Waypoints &waypoints) const;
+};
 
 #endif

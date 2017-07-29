@@ -40,8 +40,8 @@ int main() {
         // "42" at the start of the message means there's a websocket message event.
         // The 4 signifies a websocket message
         // The 2 signifies a websocket event
-        //auto sdata = string(data).substr(0, length);
-        //cout << sdata << endl;
+        // auto sdata = std::string(data).substr(0, length);
+        // std::cout << sdata << std::endl;
         if (length <= 2 || data[0] != '4' || data[1] != '2') {
             return;
         }
@@ -67,12 +67,7 @@ int main() {
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];
 
-        Waypoints previous(
-            j[1]["previous_path_x"],
-            j[1]["previous_path_y"]
-        );
-
-        Waypoints waypoints = planner(state, previous);
+        Waypoints waypoints = planner(state);
 
         json msgJson;
         msgJson["next_x"] = waypoints.x;

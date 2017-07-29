@@ -27,8 +27,10 @@ add_executable(path_planning
     "src/highway_map.cpp"
     "src/lane.cpp"
     "src/main.cpp"
-    "src/MPP.cpp"
+    "src/OPP.cpp"
     "src/path_planner.cpp"
+    "src/state.cpp"
+    "src/vehicles.cpp"
     "src/waypoints.cpp"
 )
 
