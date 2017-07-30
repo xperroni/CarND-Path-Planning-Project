@@ -16,6 +16,32 @@ static Behavior TAILING(BehaviorPlanner &planner);
 
 static Behavior CHANGING_LANES(BehaviorPlanner &planner);
 
+inline bool safeAhead(size_t lane, const BehaviorPlanner &planner) {
+    const State &state = planner.state;
+    const Obstacles &obstacles = planner.obstacles;
+
+    size_t i_ahead = 0;
+    double d_ahead = 0;
+    std::tie(i_ahead, d_ahead) = obstacles.closestAhead(lane, state.s);
+    return (
+        (d_ahead > 2 * V_PLAN) &&
+        (d_ahead + 2 * (obstacles.speeds.s[i_ahead] - planner.v) > 2 * V_PLAN)
+    );
+}
+
+inline bool safeBehind(size_t lane, const BehaviorPlanner &planner) {
+    const State &state = planner.state;
+    const Obstacles &obstacles = planner.obstacles;
+
+    size_t i_behind = 0;
+    double d_behind = 0;
+    std::tie(i_behind, d_behind) = obstacles.closestBehind(lane, state.s);
+    return (
+        (d_behind > 0.5 * V_PLAN) &&
+        (d_behind - 0.5 * (obstacles.speeds.s[i_behind] - planner.v) > 0.5 * V_PLAN)
+    );
+}
+
 static Behavior START(BehaviorPlanner &planner) {
     size_t lane = planner.highway.closestIndex(planner.state);
     planner.origin_lane = lane;
@@ -26,25 +52,39 @@ static Behavior START(BehaviorPlanner &planner) {
 }
 
 static Behavior CRUISING(BehaviorPlanner &planner) {
+    planner.v = V_PLAN;
+
+    const State &state = planner.state;
+    const Obstacles &obstacles = planner.obstacles;
+    const HighwayMap &highway = planner.highway;
+
     size_t i;
     double d;
-    std::tie(i, d) = planner.obstacles.closestAhead(planner.state.lane, planner.state.s);
+    std::tie(i, d) = obstacles.closestAhead(state.lane, state.s);
 
-    if (d >= V_PLAN) {
-        planner.v = V_PLAN;
-        return CRUISING;
-    }
-    else {
-        planner.v = planner.obstacles.speeds.s[i];
+    if (d < V_PLAN) {
+        planner.v = obstacles.speeds.s[i];
         return TAILING;
     }
+
+    auto adjacent = highway.adjacentLanes(state.lane);
+    if (adjacent.size() > 1) {
+        return CRUISING;
+    }
+
+    size_t lane = adjacent.back();
+    if (safeAhead(lane, planner) && safeBehind(lane, planner)) {
+        planner.target_lane = lane;
+        return CHANGING_LANES;
+    }
+
+    return CRUISING;
 }
 
 static Behavior TAILING(BehaviorPlanner &planner) {
     const State &state = planner.state;
     const Obstacles &obstacles = planner.obstacles;
     const HighwayMap &highway = planner.highway;
-    double s = state.s;
 
     size_t i_front;
     double d_front;
@@ -57,23 +97,7 @@ static Behavior TAILING(BehaviorPlanner &planner) {
     planner.v = obstacles.speeds.s[i_front];
 
     for (size_t lane: highway.adjacentLanes(state.lane)) {
-        size_t i_behind = 0;
-        double d_behind = 0;
-        std::tie(i_behind, d_behind) = obstacles.closestAhead(lane, s);
-        if (
-            (d_behind < 5) ||
-            (d_behind - 3 * (obstacles.speeds.s[i_behind] - planner.v) < 5)
-        ) {
-            continue;
-        }
-
-        size_t i_ahead = 0;
-        double d_ahead = 0;
-        std::tie(i_ahead, d_ahead) = obstacles.closestAhead(lane, s);
-        if (
-            (d_ahead - d_front > 5) &&
-            (d_ahead + 3 * obstacles.speeds.s[i_ahead] - (d_front + 3 * obstacles.speeds.s[i_front]) > 5)
-        ) {
+        if (safeAhead(lane, planner) && safeBehind(lane, planner)) {
             planner.target_lane = lane;
             return CHANGING_LANES;
         }
