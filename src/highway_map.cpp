@@ -12,6 +12,19 @@ HighwayMap::HighwayMap():
     // Nothing to do.
 }
 
+std::vector<size_t> HighwayMap::adjacentLanes(size_t lane) const {
+    if (lane == 0) {
+        return {1};
+    }
+
+    size_t l = lanes.size() - 1;
+    if (lane >= l) {
+        return {l - 1};
+    }
+
+    return {lane - 1, lane + 1};
+}
+
 size_t HighwayMap::closestIndex(double x, double y) const {
     size_t i_closest = 0;
     double d2_closest = std::numeric_limits<double>::max();

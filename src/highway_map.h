@@ -15,6 +15,11 @@ struct HighwayMap {
     HighwayMap();
 
     /**
+     * @brief Return the indexes to the lane(s) adjacent to the given one.
+     */
+    std::vector<size_t> adjacentLanes(size_t lane) const;
+
+    /**
      * @brief Return the index of the lane closest to the given point.
      */
     size_t closestIndex(double x, double y) const;

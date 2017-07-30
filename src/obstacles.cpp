@@ -1,5 +1,47 @@
 #include "obstacles.h"
 
+#include "settings.h"
+
+std::tuple<size_t, double> Obstacles::closestAhead(size_t lane, double s) const {
+    double d_closest = std::numeric_limits<double>::max();
+    size_t i_closest = 0;
+
+    for (size_t i = 0, n = size(); i < n; ++i) {
+        if (lane != lanes[i]) {
+            continue;
+        }
+
+        double s_i = frenet.x[i];
+        double d = (s < s_i ? s_i - s : s_i + S_MAX - s);
+        if (d < d_closest) {
+            d_closest = d;
+            i_closest = i;
+        }
+    }
+
+    return std::make_tuple(i_closest, d_closest);
+}
+
+std::tuple<size_t, double> Obstacles::closestBehind(size_t lane, double s) const {
+    double d_closest = std::numeric_limits<double>::max();
+    size_t i_closest = 0;
+
+    for (size_t i = 0, n = size(); i < n; ++i) {
+        if (lane != lanes[i]) {
+            continue;
+        }
+
+        double s_i = frenet.x[i];
+        double d = (s_i < s ? s - s_i : s + S_MAX - s_i);
+        if (d < d_closest) {
+            d_closest = d;
+            i_closest = i;
+        }
+    }
+
+    return std::make_tuple(i_closest, d_closest);
+}
+
 // void Obstacles::update(double t, const State &state, const nlohmann::json &json) {
 void Obstacles::update(double t, const HighwayMap &highway, const nlohmann::json &json) {
     cartesian.x.clear();
