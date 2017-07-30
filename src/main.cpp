@@ -34,9 +34,9 @@ std::string hasData(std::string s) {
 int main() {
     uWS::Hub h;
 
-    Navigator navigator(3, 4.0);
+    Navigator navigator;
     std::ifstream map_file("data/highway_map.csv");
-    map_file >> navigator.highway;
+    map_file >> navigator.behavior.highway;
 
     auto handler = [&](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
         // "42" at the start of the message means there's a websocket message event.

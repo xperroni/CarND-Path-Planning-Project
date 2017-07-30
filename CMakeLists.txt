@@ -24,6 +24,7 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 
 add_executable(path_planning
+    "src/behavior_planner.cpp"
     "src/highway_map.cpp"
     "src/lane.cpp"
     "src/main.cpp"

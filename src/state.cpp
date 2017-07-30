@@ -1,5 +1,6 @@
 #include "state.h"
 
+#include "highway_map.h"
 #include "settings.h"
 
 #include <cmath>
@@ -8,21 +9,24 @@ State::State():
     x(0),
     y(0),
     o(0),
+    s(0),
+    d(0),
     v(0)
 {
     // Nothing to do.
 }
 
-void State::update(const nlohmann::json &json) {
+void State::update(const HighwayMap &highway, const Waypoints &route, const nlohmann::json &json) {
     x = json["x"];
     y = json["y"];
+    s = json["s"];
+    d = json["d"];
     o = ((double) json["yaw"]) * M_PI / 180.0; // Convert from degrees to radians
     v = ((double) json["speed"]) * 0.447; // Convert from MPH to m/s
-}
 
-void State::update(const Waypoints &route) {
     size_t n = route.size();
     if (n == 0) {
+        lane = highway.closestIndex(d);
         return;
     }
 
@@ -30,26 +34,29 @@ void State::update(const Waypoints &route) {
     // update the state's position.
 
     size_t l = n - 1;
+    double x_a = x;
+    double y_a = y;
+    if (l > 0) {
+        x_a = route.x[l - 1];
+        y_a = route.y[l - 1];
+    }
+
     double x_b = route.x[l];
     double y_b = route.y[l];
+    double x_d = x_b - x_a;
+    double y_d = y_b - y_a;
+    double e = std::sqrt(x_d * x_d + y_d * y_d);
 
     x = x_b;
     y = y_b;
-
-    if (l == 0) {
-        return;
-    }
-
-    // If the route has more than one waypoint, use the last two waypoints to
-    // update the state's orientation and speed.
-
-    double x_a = route.x[l - 1];
-    double y_a = route.y[l - 1];
-    double x_d = x_b - x_a;
-    double y_d = y_b - y_a;
-
     o = std::atan2(y_d, x_d);
-    v = std::sqrt(x_d * x_d + y_d * y_d) / T_PLAN;
+    v = e / T_PLAN;
+    lane = highway.closestIndex(x, y);
+
+    const Lane &closest = highway.lanes[lane];
+    double w = o - closest.o[closest.closestIndex(x, y)];
+    s += e * std::cos(w);
+    d += e * std::sin(w);
 }
 
 void State::toLocalFrame(Waypoints &waypoints) const {

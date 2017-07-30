@@ -5,18 +5,24 @@
 
 #include "json.hpp"
 
-struct State {
-    /** @brief Current position in the horizontal axis. */
-    double x;
+// Forward declaration.
+struct HighwayMap;
 
-    /** @brief Current position in the vertical axis. */
-    double y;
+struct State {
+    /** @brief Current position in Cartesian coordinates. */
+    double x, y;
 
     /** @brief Current orientation in radians. */
     double o;
 
+    /** @brief Current position in Frenet coordinates. */
+    double s, d;
+
     /** @brief Current linear speed. */
     double v;
+
+    /** @brief Current lane. */
+    size_t lane;
 
     /**
      * @brief Default constructor.
@@ -24,14 +30,9 @@ struct State {
     State();
 
     /**
-     * @brief Update this state with data from the given JSON node.
+     * @brief Update this state with data from the given route and JSON node.
      */
-    void update(const nlohmann::json &json);
-
-    /**
-     * @brief Update this state with data from the given route.
-     */
-    void update(const Waypoints &route);
+    void update(const HighwayMap &highway, const Waypoints &route, const nlohmann::json &json);
 
     /**
      * @brief Convert the given waypoints to a local frame relative to this state.

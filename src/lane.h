@@ -10,6 +10,12 @@
 struct Lane: Waypoints {
     double width;
 
+    /** Waypoint positions along the road. */
+    std::vector<double> s;
+
+    /** Waypoint orientations along the road. */
+    std::vector<double> o;
+
     /**
      * @brief Default constructor.
      */
@@ -24,6 +30,11 @@ struct Lane: Waypoints {
      * @brief Return the index of the lane waypoint closest to the given point.
      */
     size_t closestIndex(double x, double y) const;
+
+    /**
+     * @brief Return the index of the lane waypoint closest to the given point.
+     */
+    size_t closestIndex(double s) const;
 
     /**
      * @brief Return the index of the lane waypoint closest to the given point, and the square distance to it..

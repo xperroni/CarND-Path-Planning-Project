@@ -10,15 +10,24 @@ struct HighwayMap {
     std::vector<Lane> lanes;
 
     /**
-     * @brief Create a highway map with the given number of lanes, each of given
-     * width in meters.
+     * @brief Default constructor.
      */
-    HighwayMap(size_t lanes, double width);
+    HighwayMap();
 
     /**
      * @brief Return the index of the lane closest to the given point.
      */
     size_t closestIndex(double x, double y) const;
+
+    /**
+     * @brief Return the index of the lane closest to the given state.
+     */
+    size_t closestIndex(const State &state) const;
+
+    /**
+     * @brief Return the index of the lane closest to the given point.
+     */
+    size_t closestIndex(double d) const;
 
     /**
      * @brief Return a reference to the lane closest to the given point.

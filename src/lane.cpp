@@ -25,6 +25,21 @@ size_t Lane::closestIndex(double x, double y) const {
     return i;
 }
 
+size_t Lane::closestIndex(double s) const {
+    double d2_closest = std::numeric_limits<double>::max();
+    size_t i_closest = 0;
+
+    for(size_t i = 0, n = size(); i < n; i++) {
+        double d2 = pow(s - this->s[i], 2.0);
+        if(d2 < d2_closest) {
+            d2_closest = d2;
+            i_closest = i;
+        }
+    }
+
+    return i_closest;
+}
+
 std::tuple<size_t, double> Lane::closestIndexD2(double x, double y) const {
     double d2_closest = std::numeric_limits<double>::max();
     size_t i_closest = 0;
