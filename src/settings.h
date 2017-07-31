@@ -11,7 +11,7 @@
 #define N_PLAN 50
 
 /** @brief Number of planned waypoints to keep between updates. */
-#define N_KEEP 10
+#define N_KEEP 20
 
 /** @brief Time gap between waypoints. */
 #define T_PLAN 0.02

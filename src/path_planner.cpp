@@ -1,6 +1,4 @@
-#include "OPP.h"
-
-using Eigen::VectorXd;
+#include "path_planner.h"
 
 #include "settings.h"
 
@@ -8,6 +6,10 @@ using Eigen::VectorXd;
 #include <cppad/ipopt/solve.hpp>
 
 using CppAD::AD;
+
+#include <Eigen/Dense>
+
+using Eigen::VectorXd;
 
 static const size_t X = 0;
 static const size_t Y = 1;
@@ -96,11 +98,13 @@ private:
     }
 };
 
-Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
+const Waypoints &PathPlanner::operator () (const BehaviorPlanner &behavior) {
     // Differentiable value vector type.
     typedef CPPAD_TESTVECTOR(double) Vector;
 
     // Initialize independent variable and bounds vectors.
+    const State &state = behavior.state;
+    size_t n_plan = N_PLAN - plan.size();
     size_t n_vars = n_plan * SIZEOF_POINT;
     Vector vars(n_vars);
     Vector vars_lowerbound(n_vars);
@@ -113,10 +117,10 @@ Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
         vars[i_y] = 0;
 
         vars_lowerbound[i_x] = 0;
-        vars_upperbound[i_x] = 2 * V_PLAN * T_PLAN * n_plan;
+        vars_upperbound[i_x] = V_PLAN * T_PLAN * n_plan;
 
-        vars_lowerbound[i_y] = -2 * V_PLAN * T_PLAN * n_plan;
-        vars_upperbound[i_y] = 2 * V_PLAN * T_PLAN * n_plan;
+        vars_lowerbound[i_y] = state.d - N_LANES * W_LANE;
+        vars_upperbound[i_y] = state.d;
     }
 
     // Lock the first point in place, as it represents the car's current position.
@@ -144,7 +148,7 @@ Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
     }
 
     // Define the cost function.
-    Cost cost(n_plan, v_0, v_r, route);
+    Cost cost(n_plan, state.v, behavior.v, behavior.route);
 
     // Options for IPOPT solver.
     std::string options =
@@ -173,8 +177,9 @@ Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
 //     auto status = (solution.status == CppAD::ipopt::solve_result<Vector>::success ? "succeeded" : "failed");
 //     std::cout << "Solver " << status << ", final cost value = " << value << std::endl;
 
-    std::vector<double> x;
-    std::vector<double> y;
+    Waypoints append;
+    std::vector<double> &x = append.x;
+    std::vector<double> &y = append.y;
 
     // Discard first waypoint, which is the same as the last waypoint in the
     // current route.
@@ -183,5 +188,9 @@ Waypoints OPP(size_t n_plan, double v_0, double v_r, const VectorXd &route) {
         y.push_back(control[i + Y]);
     }
 
-    return {x, y};
+    state.toGlobalFrame(append);
+    plan.x.insert(plan.x.end(), append.x.begin(), append.x.end());
+    plan.y.insert(plan.y.end(), append.y.begin(), append.y.end());
+
+    return plan;
 }

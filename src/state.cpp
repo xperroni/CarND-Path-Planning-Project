@@ -56,7 +56,7 @@ void State::update(const HighwayMap &highway, const Waypoints &route, const nloh
     const Lane &closest = highway.lanes[lane];
     double w = o - closest.o[closest.closestIndex(x, y)];
     s += e * std::cos(w);
-    d += e * std::sin(w);
+    d -= e * std::sin(w);
 }
 
 void State::toLocalFrame(Waypoints &waypoints) const {

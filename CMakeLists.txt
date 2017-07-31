@@ -29,9 +29,9 @@ add_executable(path_planning
     "src/lane.cpp"
     "src/main.cpp"
     "src/navigator.cpp"
-    "src/OPP.cpp"
-    "src/state.cpp"
     "src/obstacles.cpp"
+    "src/path_planner.cpp"
+    "src/state.cpp"
     "src/waypoints.cpp"
 )
 

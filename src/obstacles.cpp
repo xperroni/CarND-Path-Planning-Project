@@ -72,7 +72,7 @@ void Obstacles::update(double t, const HighwayMap &highway, const nlohmann::json
         double v = std::sqrt(v_x * v_x + v_y * v_y);
         double o = std::atan2(v_y, v_x) - lane.o[l];
         double v_s = v * std::cos(o);
-        double v_d = v * std::sin(o);
+        double v_d = -v * std::sin(o);
 
 //         std::cout << x_i << ", " << y_i << ", " << s_i << ", " << d_i << std::endl;
 
