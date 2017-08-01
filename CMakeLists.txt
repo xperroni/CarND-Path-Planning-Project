@@ -4,7 +4,7 @@ cmake_minimum_required (VERSION 3.5)
 
 add_definitions(-std=c++11)
 
-set(CXX_FLAGS "-Wall -DHAVE_CSTDDEF")
+set(CXX_FLAGS "-Wall -DHAVE_CSTDDEF -O2 -march=native")
 set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
 include_directories(

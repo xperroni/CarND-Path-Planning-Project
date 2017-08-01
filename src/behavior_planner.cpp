@@ -94,10 +94,16 @@ static Behavior TAILING(BehaviorPlanner &planner) {
         return CRUISING;
     }
 
-    planner.v = obstacles.speeds.s[i_front];
+    double v = obstacles.speeds.s[i_front];
+    if (d_front >= v) {
+        planner.v = v;
+    }
+    else {
+        planner.v = 0.5 * d_front;
+    }
 
     for (size_t lane: highway.adjacentLanes(state.lane)) {
-        if (safeAhead(lane, planner) && safeBehind(lane, planner)) {
+        if (safeAhead(lane, planner) && safeBehind(lane, planner) && planner.v == v) {
             planner.target_lane = lane;
             return CHANGING_LANES;
         }

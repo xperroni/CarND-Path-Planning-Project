@@ -19,6 +19,14 @@ static const size_t SIZEOF_POINT = 2;
 static const size_t SIZEOF_CONSTRAINT = 3;
 static const size_t SIZEOF_OBSTACLE = 2;
 
+// Options for IPOPT solver.
+static const std::string options =
+    "Integer print_level 0\n"
+    "Sparse true reverse\n"
+    "Numeric max_cpu_time 0.2\n";
+
+
+
 struct Cost {
     /** @brief Basic scalar value type. */
     typedef AD<double> Scalar;
@@ -71,6 +79,7 @@ struct Cost {
             auto y_r = reference(x_1);
 
             // Contribution to the cost function.
+            fg[0] += CppAD::pow(y_0 - y_1, 2);
             fg[0] += CppAD::pow(y_r - y_1, 2);
             fg[0] += CppAD::pow(v_r - v_1, 2);
 
@@ -119,7 +128,7 @@ const Waypoints &PathPlanner::operator () (const BehaviorPlanner &behavior) {
         vars_lowerbound[i_x] = 0;
         vars_upperbound[i_x] = V_PLAN * T_PLAN * n_plan;
 
-        vars_lowerbound[i_y] = state.d - N_LANES * W_LANE;
+        vars_lowerbound[i_y] = state.d - W_LANE * N_LANES;
         vars_upperbound[i_y] = state.d;
     }
 
@@ -139,23 +148,16 @@ const Waypoints &PathPlanner::operator () (const BehaviorPlanner &behavior) {
         constraints_upperbound[i + X] = 1.1 * V_PLAN * T_PLAN;
 
         // Ensure longitudinal acceleration stays within reasonable limits.
-        constraints_lowerbound[i + A] = -5.0;
-        constraints_upperbound[i + A] = 5.0;
+        constraints_lowerbound[i + A] = -4.0;
+        constraints_upperbound[i + A] = 4.0;
 
         // Ensure lateral acceleration stays within reasonable limits.
-        constraints_lowerbound[i + D] = -5.0;
-        constraints_upperbound[i + D] = 5.0;
+        constraints_lowerbound[i + D] = -4.0;
+        constraints_upperbound[i + D] = 4.0;
     }
 
     // Define the cost function.
     Cost cost(n_plan, state.v, behavior.v, behavior.route);
-
-    // Options for IPOPT solver.
-    std::string options =
-        "Integer print_level 0\n"
-        "Sparse true forward\n"
-        "Sparse true reverse\n"
-        "Numeric max_cpu_time 0.5\n";
 
     // Solution to the cost optimization problem.
     CppAD::ipopt::solve_result<Vector> solution;

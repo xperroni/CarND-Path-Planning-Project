@@ -70,7 +70,7 @@ size_t Lane::nextIndex(const State &state) const {
 
     double o_d = abs(o_1 - o_0);
     if(o_d > PI_025) {
-        i++;
+        i = (i + 1) % size();
     }
 
     return i;
@@ -80,8 +80,13 @@ Waypoints Lane::sample(const State &state) const {
     std::vector<double> x = {state.x};
     std::vector<double> y = {state.y};
 
-    size_t k = nextIndex(state);
     size_t n = size();
+    size_t k = nextIndex(state);
+
+    // If the next waypoint is closer than a half second away, start at the one after that.
+    if (distance2(state.x, state.y, this->x[k], this->y[k]) < 0.25 * state.v * state.v) {
+        k++;
+    }
 
     for(size_t i = 0; i < N_SAMPLES; ++i, ++k) {
         x.push_back(this->x[k % n]);
