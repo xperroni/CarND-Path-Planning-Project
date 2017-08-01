@@ -2,13 +2,13 @@
 
 This project implements a _Navigator_ (composed of a _Behavior Planner_ and a _Path Planner_) to create smooth, safe paths for an autonomous car to drive along. It communicates with Udacity's simulator through a WebSocket interface, receiving as input the car state, obstacle data (i.e. data on other vehicles) and current path plan, and sending back a new sequence of waypoints describing the updated path plan. The diagram below summarizes the system architecture:
 
-<img src="images/architecture.jpg">
+<img src="https://xperroni.github.io/CarND-Path-Planning-Project/architecture.jpg">
 
 The WebSocket interface is implemented in file [src/main.cpp](src/main.cpp). It encapsulates a [Navigator](src/navigator.h) object, which by its turn encapsulates instances of [BehaviorPlanner](src/behavior_planner.h) and [PathPlanner](src/path_planner.h). `Navigator` and `BehaviorPlanner` together decode the WebSocket inputs to collect the current path plan, composed of a sequence of waypoints in global Cartesian coordinates `(x, y)`; the current car [State](src/state.h), composed of global Cartesian coordinates `(x, y)`, orientation `o`, Frenet coordinates `(s, d)`, speed `v` and current `lane` index; and [Obstacles](src/obstacles.h) data, containing the Cartesian and Frenet coordinates, speeds and lane index of all vehicles on the same side of the road as the car. A [HighwayMap](src/highway_map.h) is used to keep track of all vehicles along the highway. Updated path plans are sent back to the simulator through the WebSocket interface.
 
 Because the Path Planner must react quickly to changing road conditions, the plan covers a period of only 0.3<i>s</i>; each turn the first 0.1<i>s</i> worth of waypoints from the current path plan is kept, and a new plan is constructed from the last kept waypoint onwards. Accordingly, the first step of the planning process is to update `State` and `Obstacles` objects to reflect expected conditions 0.1<i>s</i> into the future. The `BehaviorPlanner` then updates its internal Finite State Machine (FSM) according to predicted readings and its own rules, as illustrated below:
 
-<img src="images/behavior_fsm.jpg">
+<img src="https://xperroni.github.io/CarND-Path-Planning-Project/behavior_fsm.jpg">
 
 The FSM starts at the `START` state, which determines the initial lane and the switches into the `CRUISING` state. In this state the car moves at the reference speed of 20<i>m/s</i> (close to 44MPH); it also tries to keep the car on the middle lane, from where it can more easily move to avoid slower cars. If it finds a slower car ahead, it initially switches to the `TAILING` state where it will try to pair its speed to them, while watching for an opportunity to change lanes. When this comes the FSM selects a destination lane and switches to `CHANGING_LANES` state, returning to `CRUISING` state once the movement is complete.
 
