@@ -17,7 +17,7 @@
 #define T_PLAN 0.02
 
 /** @brief Optimal speed in m/s. */
-#define V_PLAN 22.0
+#define V_PLAN 20.0
 
 /** @brief Order of the polynomial used to fit waypoints. */
 #define N_FIT 3
