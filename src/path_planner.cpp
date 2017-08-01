@@ -75,18 +75,23 @@ struct Cost {
             auto v_1 = x_d / T_PLAN;
             auto w_1 = y_d / T_PLAN;
 
+            // Longitudinal and lateral accelerations.
+            auto a_1 = (v_1 - v_0) / T_PLAN;
+            auto d_1 = (w_1 - w_0) / T_PLAN;
+
             // Reference state.
             auto y_r = reference(x_1);
 
-            // Contribution to the cost function.
-            fg[0] += CppAD::pow(y_0 - y_1, 2);
+            // Contributions to the cost function.
+            fg[0] += CppAD::pow(a_1, 2);
+            fg[0] += 0.0001 * CppAD::pow(d_1, 2);
             fg[0] += CppAD::pow(y_r - y_1, 2);
             fg[0] += CppAD::pow(v_r - v_1, 2);
 
             // Constraint functions values.
             fg[1 + X + SIZEOF_CONSTRAINT * i] = x_d;
-            fg[1 + A + SIZEOF_CONSTRAINT * i] = (v_1 - v_0) / T_PLAN;
-            fg[1 + D + SIZEOF_CONSTRAINT * i] = (w_1 - w_0) / T_PLAN;
+            fg[1 + A + SIZEOF_CONSTRAINT * i] = a_1;
+            fg[1 + D + SIZEOF_CONSTRAINT * i] = d_1;
 
             v_0 = v_1;
             w_0 = w_1;
